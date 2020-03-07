@@ -12,10 +12,9 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.Animation;
-import android.view.animation.AnimationUtils;
 import android.view.animation.ScaleAnimation;
 import android.widget.ImageButton;
-import android.widget.TextView;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
@@ -24,12 +23,11 @@ import androidx.core.content.FileProvider;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProviders;
-import androidx.navigation.Navigation;
 
 import com.bumptech.glide.Glide;
 import com.example.shotmarker.MainActivity;
 import com.example.shotmarker.R;
-import com.google.android.material.navigation.NavigationView;
+import com.example.shotmarker.getPhotoFromPhotoAlbum;
 
 import java.io.File;
 import java.util.List;
@@ -40,10 +38,15 @@ import pub.devrel.easypermissions.EasyPermissions;
 
 import static android.app.Activity.RESULT_OK;
 
-public class DashboardFragment extends Fragment {
+public class DashboardFragment extends Fragment implements EasyPermissions.PermissionCallbacks {
+
+    private File cameraSavePath;//拍照照片路径
+    private Uri photo_uri;//照片uri
+    private ImageView ivTest;//imageViewTest
 
     private DashboardViewModel dashboardViewModel;
     private String[] permissions = {Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE};
+
 
     public View onCreateView(@NonNull LayoutInflater inflater,
                              ViewGroup container, Bundle savedInstanceState) {
@@ -60,6 +63,7 @@ public class DashboardFragment extends Fragment {
         return root;
     }
 
+
     //获取权限
     private void getPermission() {
         if (EasyPermissions.hasPermissions(getActivity(), permissions)) {
@@ -70,7 +74,6 @@ public class DashboardFragment extends Fragment {
             EasyPermissions.requestPermissions(this, "需要获取您的相册、照相使用权限", 1, permissions);
         }
     }
-
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -87,29 +90,34 @@ public class DashboardFragment extends Fragment {
         Toast.makeText(getActivity(), "请同意相关权限，否则功能无法使用", Toast.LENGTH_SHORT).show();
     }
 
-    private File cameraSavePath;//拍照照片路径
-    private Uri uri;//照片uri
 
     //激活相机操作
     private void goCamera() {
         cameraSavePath = new File(Environment.getExternalStorageDirectory().getPath() + "/" + System.currentTimeMillis() + ".jpg");
         Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
 
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             //第二个参数为 包名.fileprovider
-            uri = FileProvider.getUriForFile(getContext(), "com.example.hxd.pictest.fileprovider", cameraSavePath);
+            photo_uri = FileProvider.getUriForFile(getContext(), "com.example.hxd.pictest.fileprovider", cameraSavePath);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         } else {
-            uri = Uri.fromFile(cameraSavePath);
+            photo_uri = Uri.fromFile(cameraSavePath);
         }
-        intent.putExtra(MediaStore.EXTRA_OUTPUT, uri);
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, photo_uri);
         getActivity().startActivityForResult(intent, 1);
     }
-
+    //激活相册操作
+    private void goPhotoAlbum() {
+        Intent intent = new Intent();
+        intent.setAction(Intent.ACTION_PICK);
+        intent.setType("image/*");
+        startActivityForResult(intent, 2);
+    }
+//--------------------------------------------------------------------------------------------------
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
-
 
         //点击拍照按钮的时候干的事儿
         final ImageButton shot = getView().findViewById(R.id.shotButton);
@@ -157,5 +165,24 @@ public class DashboardFragment extends Fragment {
                 shot.startAnimation(animation2);
             } }, 500);
 
+    }
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        String photoPath;
+        if (requestCode == 1 && resultCode == RESULT_OK) {
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                photoPath = String.valueOf(cameraSavePath);
+            } else {
+                photoPath = photo_uri.getEncodedPath();
+            }
+            Log.d("拍照返回图片路径:", photoPath);
+            Glide.with(getActivity()).load(photoPath).into(ivTest);
+        } else if (requestCode == 2 && resultCode == RESULT_OK) {
+            photoPath = getPhotoFromPhotoAlbum.getRealPathFromUri(getContext(), data.getData());
+            Glide.with(getActivity()).load(photoPath).into(ivTest);
+        }
+
+        super.onActivityResult(requestCode, resultCode, data);
     }
 }
